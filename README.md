@@ -1,5 +1,16 @@
 # Library install
-`dep ensure`
+```
+dep ensure
+```
 
-# localhost env
-`source local_init.sh`
+# Dev
+```
+dev_appserver.py app.yaml
+```
+
+# Deploy
+```
+gcloud app deploy
+gcloud app deploy cron.yaml
+gcloud app browse
+```

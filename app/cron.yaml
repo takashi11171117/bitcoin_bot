@@ -1,0 +1,5 @@
+cron:
+- description: push tickerdata of bitcoin to datastore
+  url: /bitcoin
+  schedule: every 1 mins
+  timezone: Asia/Tokyo
