@@ -133,6 +133,8 @@ func bitcoin(w http.ResponseWriter, r *http.Request) {
 	marketResults := make(map[string]market)
 	marketArray := make(map[string][]market)
 
+	log.Debugf(ctx, "e: %v", results)
+
 	for _, result := range results {
 		var m market
 

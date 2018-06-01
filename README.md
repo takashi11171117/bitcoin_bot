@@ -19,5 +19,5 @@ export GOPATH={AppGopath}
 ln -s `pwd`/vendor `pwd`/gopath/src
 gcloud app deploy
 gcloud app deploy cron.yaml
-gcloud app browse
+gcloud datastore create-indexes index.yaml
 ```
