@@ -151,11 +151,11 @@ func bitcoin(w http.ResponseWriter, r *http.Request) {
 	basicRatio := 3.5
 
 	ratio := ((marketResults["FX_BTC_JPY"].Ltp / marketResults["BTC_JPY"].Ltp) * 100) - 100
-	if ratio <= basicRatio {
+	if ratio > basicRatio {
 		FxBtcJpy := marketArray["FX_BTC_JPY"][1]
 		BtcJpy := marketArray["BTC_JPY"][1]
 		ratio2 := ((FxBtcJpy.Ltp / BtcJpy.Ltp) * 100) - 100
-		if ratio2 > basicRatio {
+		if ratio2 <= basicRatio {
 			payload := "{'text':'乖離率が" + strconv.FormatFloat(basicRatio, 'f', 2, 64) + "%を超えました現在の乖離率は" + strconv.FormatFloat(ratio, 'f', 4, 64) + "%です', 'username':'bitcoin-bot', 'channel':'bitcoin', 'icon_emoji':':kityune:'}"
 			data := url.Values{}
 			data.Set("payload", payload)
