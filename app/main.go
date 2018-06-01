@@ -1,15 +1,30 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
-	"os"
+	"net/url"
+	"strconv"
+
+	"github.com/BurntSushi/toml"
 
 	"google.golang.org/appengine"
 	"google.golang.org/appengine/datastore"
 	"google.golang.org/appengine/log"
+	"google.golang.org/appengine/urlfetch"
 )
+
+type config struct {
+	Slack slackConf
+}
+
+type slackConf struct {
+	SlackURL string
+}
+
+var configVar config
 
 type bitFlyerOpe struct {
 	api  PublicApi
@@ -21,7 +36,6 @@ func newBitFlyerOpe(ctx context.Context) *bitFlyerOpe {
 	err, _ := b.GetHealth(ctx)
 	if err != nil {
 		log.Errorf(ctx, "Get Health of bitflyer: %v", err)
-		os.Exit(1)
 	}
 
 	return &bitFlyerOpe{
@@ -79,9 +93,17 @@ func (m *market) putDatastore(ctx context.Context) {
 	key := datastore.NewIncompleteKey(ctx, kind, nil)
 	if _, err := datastore.Put(ctx, key, m); err != nil {
 		log.Errorf(ctx, "datastore.Put: %v", err)
-
-		return
 	}
+}
+
+func getDatastore(ctx context.Context, productCode string) []market {
+	var marketArray []market
+	q := datastore.NewQuery("Market").Filter("ProductCode =", productCode).Order("-Timestamp").Limit(5)
+	if _, err := q.GetAll(ctx, &marketArray); err != nil {
+		log.Errorf(ctx, "datastore.Get: %v", err)
+	}
+
+	return marketArray
 }
 
 func main() {
@@ -91,6 +113,11 @@ func main() {
 
 func bitcoin(w http.ResponseWriter, r *http.Request) {
 	ctx := appengine.NewContext(r)
+
+	_, err := toml.DecodeFile("config.toml", &configVar)
+	if err != nil {
+		log.Errorf(ctx, "Setup file can not be read : %v", err)
+	}
 
 	b := newBitFlyerOpe(ctx)
 
@@ -103,6 +130,8 @@ func bitcoin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	results := b.getTickers(ctx, markets)
+	marketResults := make(map[string]market)
+	marketArray := make(map[string][]market)
 
 	for _, result := range results {
 		var m market
@@ -114,6 +143,38 @@ func bitcoin(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			m.putDatastore(ctx)
+			marketResults[m.ProductCode] = m
+			marketArray[m.ProductCode] = getDatastore(ctx, m.ProductCode)
+		}
+	}
+
+	basicRatio := 3.5
+
+	ratio := ((marketResults["FX_BTC_JPY"].Ltp / marketResults["BTC_JPY"].Ltp) * 100) - 100
+	if ratio <= basicRatio {
+		FxBtcJpy := marketArray["FX_BTC_JPY"][1]
+		BtcJpy := marketArray["BTC_JPY"][1]
+		ratio2 := ((FxBtcJpy.Ltp / BtcJpy.Ltp) * 100) - 100
+		if ratio2 > basicRatio {
+			payload := "{'text':'乖離率が" + strconv.FormatFloat(basicRatio, 'f', 2, 64) + "%を超えました現在の乖離率は" + strconv.FormatFloat(ratio, 'f', 4, 64) + "%です', 'username':'bitcoin-bot', 'channel':'bitcoin', 'icon_emoji':':kityune:'}"
+			data := url.Values{}
+			data.Set("payload", payload)
+
+			// log.Debugf(ctx, "e: %v", configVar.Slack.SlackURL)
+			// log.Debugf(ctx, "e: %v", strconv.FormatFloat(ratio, 'f', 4, 64))
+
+			req, err := http.NewRequest("POST", configVar.Slack.SlackURL, bytes.NewBufferString(data.Encode()))
+			if err != nil {
+				log.Errorf(ctx, "Fail post to slack: %v", err)
+			}
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+			client := urlfetch.Client(ctx)
+			_, err = client.Do(req)
+
+			if err != nil {
+				log.Errorf(ctx, "Fail post to slack: %v", err)
+			}
 		}
 	}
 }

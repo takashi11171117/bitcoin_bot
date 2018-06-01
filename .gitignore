@@ -2,3 +2,6 @@
 vendor/
 credencial.json
 log.*
+config.toml
+gopath/*
+!.gitkeep
